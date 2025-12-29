@@ -1,0 +1,5 @@
+{
+  "name": "Excel Post Mapper",
+  "description": "A SPA to upload Excel transaction data, aggregate by receipt post, and map to specific accounting codes.",
+  "requestFramePermissions": []
+}
