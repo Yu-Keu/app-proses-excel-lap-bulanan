@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { ProcessedRow } from '../types';
 import { formatCurrency } from '../utils/excelProcessor';
-import { Download, AlertCircle, FileX, Search, ArrowUpDown, ArrowUp, ArrowDown, X, Filter, Calendar, Copy, Check } from 'lucide-react';
+import { Download, AlertCircle, FileX, Search, ArrowUpDown, ArrowUp, ArrowDown, X, Copy, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface ResultTableProps {
   data: ProcessedRow[];
   onReset: () => void;
+  selectedDate: string;
+  selectedPaymentMethod: string; // Received from parent
 }
 
 type SortKey = 'originalPos' | 'kode' | 'tanggal' | 'uraian' | 'nominal' | 'paymentMethod';
@@ -31,39 +33,12 @@ const COLUMNS: ColumnDef[] = [
   { key: 'nominal', label: 'Nominal' },
 ];
 
-const ResultTable: React.FC<ResultTableProps> = ({ data, onReset }) => {
+const ResultTable: React.FC<ResultTableProps> = ({ data, onReset, selectedDate, selectedPaymentMethod }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('ALL');
-  const [selectedDate, setSelectedDate] = useState<string>('ALL');
-  
   const [isCopied, setIsCopied] = useState(false);
   
   // Default sort by 'originalPos' (which uses orderIndex)
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'originalPos', direction: 'asc' });
-
-  // Get unique payment methods for filter
-  const paymentMethods = useMemo(() => {
-    const methods = new Set(data.map(item => item.paymentMethod));
-    return ['ALL', ...Array.from(methods).sort()];
-  }, [data]);
-
-  // Get unique dates found in excel, sorted by rawDate (chronological)
-  const availableDates = useMemo(() => {
-    const uniqueDatesMap = new Map<string, number>();
-    
-    data.forEach(item => {
-      if (!uniqueDatesMap.has(item.tanggal)) {
-        uniqueDatesMap.set(item.tanggal, item.rawDate);
-      }
-    });
-
-    // Sort by timestamp (oldest to newest)
-    const sortedDates = Array.from(uniqueDatesMap.keys()).sort((a, b) => {
-      return (uniqueDatesMap.get(a) || 0) - (uniqueDatesMap.get(b) || 0);
-    });
-
-    return ['ALL', ...sortedDates];
-  }, [data]);
 
   // Filtering and Sorting Logic
   const processedData = useMemo(() => {
@@ -81,12 +56,12 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset }) => {
       );
     }
 
-    // 2. Payment Method Filtering
+    // 2. Payment Method Filtering (From Prop)
     if (selectedPaymentMethod !== 'ALL') {
       result = result.filter(row => row.paymentMethod === selectedPaymentMethod);
     }
 
-    // 3. Date Filtering
+    // 3. Date Filtering (From Prop)
     if (selectedDate !== 'ALL') {
       result = result.filter(row => row.tanggal === selectedDate);
     }
@@ -206,8 +181,6 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset }) => {
 
   const clearFilters = () => {
     setSearchTerm('');
-    setSelectedPaymentMethod('ALL');
-    setSelectedDate('ALL');
   };
 
   if (data.length === 0) {
@@ -230,9 +203,17 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset }) => {
   return (
     <div className="w-full max-w-7xl mx-auto animate-fade-in-up">
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col">
-        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/30 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h3 className="font-bold text-gray-800">Data Transaksi Excel</h3>
+            <div className="flex flex-col items-end text-sm text-gray-500">
+               <span>Tanggal: {selectedDate === 'ALL' ? 'Semua' : selectedDate}</span>
+               <span>Metode: {selectedPaymentMethod === 'ALL' ? 'Semua' : selectedPaymentMethod}</span>
+            </div>
+        </div>
+
         {/* Toolbar */}
-        <div className="px-6 py-4 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center bg-gray-50/50 gap-4">
+        <div className="px-6 py-4 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center bg-gray-50/10 gap-4">
           
           <div className="flex flex-col md:flex-row gap-4 w-full xl:w-auto items-center">
              {/* Search Input */}
@@ -255,46 +236,6 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset }) => {
                   <X className="h-4 w-4" />
                 </button>
               )}
-            </div>
-
-            {/* Date Filter */}
-            <div className="relative w-full md:w-auto min-w-[180px]">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Calendar className="h-4 w-4 text-gray-500" />
-              </div>
-              <select
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="pl-9 pr-8 py-2 w-full text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 bg-white appearance-none cursor-pointer hover:bg-gray-50 transition-colors text-gray-700"
-              >
-                <option value="ALL">Semua Tanggal</option>
-                {availableDates.filter(d => d !== 'ALL').map(date => (
-                  <option key={date} value={date}>{date}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                <ArrowUpDown className="h-3 w-3 text-gray-400" />
-              </div>
-            </div>
-
-            {/* Payment Method Filter */}
-            <div className="relative w-full md:w-auto min-w-[200px]">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Filter className="h-4 w-4 text-gray-500" />
-              </div>
-              <select
-                value={selectedPaymentMethod}
-                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-                className="pl-9 pr-8 py-2 w-full text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 bg-white appearance-none cursor-pointer hover:bg-gray-50 transition-colors text-gray-700"
-              >
-                <option value="ALL">Semua Metode Pembayaran</option>
-                {paymentMethods.filter(m => m !== 'ALL').map(method => (
-                  <option key={method} value={method}>{method}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                <ArrowUpDown className="h-3 w-3 text-gray-400" />
-              </div>
             </div>
           </div>
 
@@ -338,10 +279,10 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset }) => {
         <div className="px-6 py-2 bg-blue-50/30 text-xs text-gray-500 border-b border-gray-100 flex flex-col sm:flex-row justify-between gap-2">
           <span>Menampilkan {processedData.length} dari {data.length} baris. </span>
           <div className='flex gap-4'>
-            {(searchTerm || selectedPaymentMethod !== 'ALL' || selectedDate !== 'ALL') && (
+            {searchTerm && (
               <div className="flex items-center gap-2">
-                <span className="text-blue-600 font-medium">Filter aktif</span>
-                <button onClick={clearFilters} className="text-gray-400 hover:text-red-500 underline">Hapus Filter</button>
+                <span className="text-blue-600 font-medium">Filter Pencarian aktif</span>
+                <button onClick={clearFilters} className="text-gray-400 hover:text-red-500 underline">Hapus</button>
               </div>
             )}
           </div>

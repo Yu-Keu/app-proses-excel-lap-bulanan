@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { ExcelRow, ProcessedRow } from '../types';
+import { ExcelRow, ProcessedRow, BankRow } from '../types';
 import { POS_MAPPING } from '../constants';
 
 // Get keys order for sorting
@@ -24,7 +24,7 @@ const parseToDate = (val: any): Date | null => {
     const cleanVal = val.trim();
     if (!cleanVal) return null;
 
-    // Try standard constructor first
+    // Try standard constructor first (handles YYYY-MM-DD which is in the sample)
     const d = new Date(cleanVal);
     if (!isNaN(d.getTime())) return d;
     
@@ -112,7 +112,7 @@ export const parseAndProcessExcel = async (file: File): Promise<ProcessedRow[]> 
           const rawTanggal = row[tanggalKey];
           const rawPenerimaan = row[penerimaanKey];
           
-          // Strict Date Check: If date is invalid/missing, SKIP the row. Do not default to today.
+          // Strict Date Check: If date is invalid/missing, SKIP the row.
           const dateObj = parseToDate(rawTanggal);
           if (!dateObj) return; 
 
@@ -184,6 +184,206 @@ export const parseAndProcessExcel = async (file: File): Promise<ProcessedRow[]> 
       }
     };
 
+    reader.onerror = (error) => reject(error);
+    reader.readAsBinaryString(file);
+  });
+};
+
+export interface BankParseResult {
+    data: BankRow[];
+    detectedType: 'BSI' | 'MUAMALAT' | 'UNKNOWN';
+}
+
+export const parseBankCSV = async (file: File): Promise<BankParseResult> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        if (!data) return;
+
+        // Force parsing as CSV if appropriate
+        const workbook = XLSX.read(data, { type: 'binary', raw: true }); 
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+
+        const aoa = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+
+        // Detection variables
+        let formatType: 'BSI' | 'MUAMALAT' | 'UNKNOWN' = 'UNKNOWN';
+        let headerRowIndex = -1;
+        let dateIdx = -1;
+        let descIdx = -1;
+        let amountIdx = -1; // Amount or Debit column
+        let dbIdx = -1; // BSI Marker column
+
+        // Helper to normalize string for comparison
+        const norm = (s: any) => String(s || '').trim().toLowerCase().replace(/['"]/g, '');
+
+        // 1. Scan first 20 rows to find header based on column names
+        for (let i = 0; i < Math.min(aoa.length, 20); i++) {
+           const row = aoa[i];
+           if (!Array.isArray(row) || row.length === 0) continue;
+           
+           const rowNorm = row.map(norm);
+
+           // Detect Muamalat: "Tgl Efektif" and "Debit"
+           const tglEfektif = rowNorm.findIndex(c => c === 'tgl efektif');
+           const debit = rowNorm.findIndex(c => c === 'debit');
+           const keterangan = rowNorm.findIndex(c => c === 'keterangan');
+
+           if (tglEfektif !== -1 && debit !== -1) {
+             formatType = 'MUAMALAT';
+             headerRowIndex = i;
+             dateIdx = tglEfektif;
+             amountIdx = debit; // We use the Debit column as the Amount source
+             descIdx = keterangan !== -1 ? keterangan : -1;
+             break;
+           }
+
+           // Detect BSI / Standard: "Date", "Amount", "DB" indicator
+           const d = rowNorm.findIndex(c => c === 'date' || c === 'tanggal');
+           const amt = rowNorm.findIndex(c => c === 'amount' || c === 'nominal');
+           const db = rowNorm.findIndex(c => c === 'db'); // Marker header
+
+           // Fallback detection for BSI if DB column header isn't explicit but structure matches
+           if (formatType === 'UNKNOWN' && d !== -1 && amt !== -1) {
+              formatType = 'BSI';
+              headerRowIndex = i;
+              dateIdx = d;
+              amountIdx = amt;
+              // Try to find description
+              descIdx = rowNorm.findIndex(c => c.includes('description') || c.includes('uraian') || c.includes('keterangan'));
+              if (descIdx === -1) descIdx = 2; // default guess
+              
+              if (db !== -1) {
+                  dbIdx = db;
+              } else {
+                  // Fallback based on typical BSI format: Date(0), FT(1), Desc(2), Curr(3), Amount(4), DB(5)
+                  dbIdx = 5; 
+              }
+              break;
+           }
+        }
+
+        // Default to BSI logic if nothing detected (legacy fallback)
+        if (headerRowIndex === -1) {
+            formatType = 'BSI';
+            headerRowIndex = 0; 
+            dateIdx = 0;
+            descIdx = 2;
+            amountIdx = 4;
+            dbIdx = 5;
+        }
+
+        const dataRows = aoa.slice(headerRowIndex + 1);
+        const processedRows: BankRow[] = [];
+
+        dataRows.forEach((row, idx) => {
+           if (!row || row.length < 2) return; 
+
+           let dateObj: Date | null = null;
+           let amount = 0;
+           let description = 'No Description';
+
+           if (formatType === 'MUAMALAT') {
+              // Muamalat Logic
+              const rawDate = row[dateIdx];
+              const rawDebit = row[amountIdx]; // "Debit" column
+              const rawDesc = descIdx !== -1 ? row[descIdx] : '';
+
+              // Filter: Debit column must be present and non-empty/non-zero
+              if (!rawDebit) return; 
+
+              // Parse Amount
+              if (typeof rawDebit === 'number') {
+                amount = rawDebit;
+              } else if (typeof rawDebit === 'string') {
+                 amount = parseFloat(rawDebit.replace(/,/g, ''));
+              }
+              if (isNaN(amount) || amount <= 0) return;
+
+              // Parse Date: Expect "dd-MMM-yyyy" e.g. "09-Dec-2025" or "01-Nov-2025"
+              const dStr = String(rawDate).trim();
+              dateObj = new Date(dStr);
+              
+              // Custom parse if new Date() fails or for safety with months
+              if (isNaN(dateObj.getTime())) {
+                 const parts = dStr.split('-');
+                 if (parts.length === 3) {
+                    const day = parseInt(parts[0]);
+                    const monthStr = parts[1].toLowerCase();
+                    const year = parseInt(parts[2]);
+                    const months: {[key:string]: number} = {
+                        jan:0, feb:1, mar:2, apr:3, may:4, mei:4, jun:5, jul:6, aug:7, agu:7, sep:8, oct:9, okt:9, nov:10, dec:11, des:11
+                    };
+                    if (months[monthStr] !== undefined) {
+                        dateObj = new Date(year, months[monthStr], day);
+                    }
+                 }
+              }
+              
+              description = rawDesc ? String(rawDesc) : '';
+
+           } else {
+              // BSI / Standard Logic
+              const rawDate = row[dateIdx];
+              const rawDesc = row[descIdx];
+              const rawAmount = row[amountIdx];
+              const dbFlag = row[dbIdx];
+
+              // Filter: Must be Debit (DB)
+              const dbStr = String(dbFlag || '').trim().toUpperCase();
+              if (dbStr !== 'DB') return;
+
+              // Parse Date
+              const dStr = String(rawDate).trim();
+              // Try standard Date constructor first (handles YYYY-MM-DD HH:mm:ss)
+              const attempt1 = new Date(dStr);
+              if (!isNaN(attempt1.getTime())) {
+                dateObj = attempt1;
+              } else {
+                dateObj = parseToDate(dStr);
+              }
+
+              // Parse Amount
+              if (typeof rawAmount === 'number') {
+                amount = rawAmount;
+              } else if (typeof rawAmount === 'string') {
+                const cleanAmt = rawAmount.replace(/,/g, '');
+                amount = parseFloat(cleanAmt);
+              }
+              
+              description = rawDesc ? String(rawDesc) : 'No Description';
+           }
+
+           if (!dateObj || isNaN(dateObj.getTime())) return;
+           if (isNaN(amount) || amount === 0) return;
+
+           processedRows.push({
+             id: `bank_${formatType}_${idx}`,
+             date: formatDateDDMMYY(dateObj),
+             rawDate: dateObj.getTime(),
+             description: description,
+             amount: amount,
+             type: 'DB'
+           });
+        });
+
+        // Sort by date ASC
+        processedRows.sort((a, b) => a.rawDate - b.rawDate);
+        
+        resolve({
+            data: processedRows,
+            detectedType: formatType
+        });
+
+      } catch (error) {
+        console.error("Error parsing bank CSV:", error);
+        reject(error);
+      }
+    };
     reader.onerror = (error) => reject(error);
     reader.readAsBinaryString(file);
   });

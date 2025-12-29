@@ -31,6 +31,15 @@ export interface ProcessedRow {
   orderIndex: number; // For sorting based on constants definition order
 }
 
+export interface BankRow {
+  id: string;
+  date: string;
+  rawDate: number;
+  description: string;
+  amount: number;
+  type: 'CR' | 'DB';
+}
+
 export interface MappingEntry {
   uraian: string;
   kode: string;
