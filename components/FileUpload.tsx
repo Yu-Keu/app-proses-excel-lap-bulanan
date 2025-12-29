@@ -1,13 +1,17 @@
 import React, { ChangeEvent } from 'react';
-import { UploadCloud, FileSpreadsheet, Database, FileText } from 'lucide-react';
+import { FileSpreadsheet, Database, FileText, CheckCircle, Upload } from 'lucide-react';
 
 interface FileUploadProps {
   onExcelSelect: (file: File) => void;
-  onBankSelect: (file: File) => void; // Used for BSI
+  onBankSelect: (file: File) => void; 
   onMuamalatSelect: (file: File) => void;
   onUseDummy: () => void;
   isLoading: boolean;
   onError: (message: string) => void;
+  // Props to display selected status
+  excelFileName?: string;
+  bsiFileName?: string;
+  muamalatFileName?: string;
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({ 
@@ -16,8 +20,12 @@ const FileUpload: React.FC<FileUploadProps> = ({
   onMuamalatSelect, 
   onUseDummy, 
   isLoading,
-  onError
+  onError,
+  excelFileName,
+  bsiFileName,
+  muamalatFileName
 }) => {
+  
   const handleExcelChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       onExcelSelect(e.target.files[0]);
@@ -27,10 +35,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const handleBSIChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      // Guard: Check BSI Filename
       if (!file.name.startsWith("Account Statement - 2477946710 - PESANTREN YATIM IBNU TAIMIYAH")) {
-        onError("File Ditolak! Format nama file BSI harus diawali: 'Account Statement - 2477946710 - PESANTREN YATIM IBNU TAIMIYAH'");
-        // Reset input value to allow re-selecting same file if needed (though invalid)
+        onError("File Ditolak! Format nama file BSI salah.");
         e.target.value = '';
         return;
       }
@@ -41,9 +47,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
   const handleMuamalatChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
-      // Guard: Check Muamalat Filename
       if (!file.name.startsWith("ACC-STATEMENT")) {
-        onError("File Ditolak! Format nama file Muamalat harus diawali: 'ACC-STATEMENT'");
+        onError("File Ditolak! Format nama file Muamalat salah.");
         e.target.value = '';
         return;
       }
@@ -51,14 +56,20 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
   };
 
+  // Helper for conditional styling
+  const getZoneClass = (isSelected: boolean) => 
+    `relative border-2 border-dashed rounded-lg p-4 text-center transition-all cursor-pointer group h-full flex flex-col justify-center items-center gap-2
+     ${isSelected 
+        ? 'border-green-500 bg-green-50' 
+        : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
+     }`;
+
   return (
-    <div className="w-full max-w-6xl mx-auto mb-8 flex flex-col items-center gap-6">
-      
-      {/* Upload Zones Container */}
-      <div className="flex flex-col gap-6 w-full">
+    <div className="w-full">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         
-        {/* Main: Excel Transaction */}
-        <div className="relative border-2 border-dashed border-blue-300 rounded-xl bg-blue-50/50 p-8 text-center hover:border-blue-500 transition-colors cursor-pointer group shadow-sm w-full">
+        {/* 1. Excel Transaction */}
+        <div className={getZoneClass(!!excelFileName)}>
           <input
             type="file"
             accept=".xlsx, .xls"
@@ -66,100 +77,83 @@ const FileUpload: React.FC<FileUploadProps> = ({
             disabled={isLoading}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           />
-          <div className="flex flex-row items-center justify-center space-x-6">
-            <div className="p-3 bg-white rounded-full shadow-sm group-hover:shadow-md transition-all">
-              {isLoading ? (
-                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              ) : (
-                <FileSpreadsheet className="w-8 h-8 text-blue-600" />
-              )}
-            </div>
-            <div className="text-left">
-              <h3 className="text-lg font-semibold text-gray-800">
-                1. Upload Transaksi Excel
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Laporan Keuangan Sekolah (.xlsx)
-              </p>
-            </div>
-          </div>
+          {excelFileName ? (
+             <>
+               <CheckCircle className="w-6 h-6 text-green-600" />
+               <div className="text-xs font-semibold text-green-700 break-all px-2 line-clamp-2">
+                 {excelFileName}
+               </div>
+             </>
+          ) : (
+             <>
+               <FileSpreadsheet className="w-6 h-6 text-blue-600 mb-1" />
+               <h3 className="text-sm font-semibold text-gray-700">1. Transaksi Excel</h3>
+               <p className="text-[10px] text-gray-400">Laporan Sekolah (.xlsx)</p>
+             </>
+          )}
         </div>
 
-        {/* Banks Container */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-            {/* BSI Upload Zone */}
-            <div className="relative border-2 border-dashed border-red-300 rounded-xl bg-red-50/50 p-6 text-center hover:border-red-500 transition-colors cursor-pointer group shadow-sm">
-                <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleBSIChange}
-                    disabled={isLoading}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
-                <div className="flex flex-col items-center justify-center space-y-3">
-                    <div className="p-3 bg-white rounded-full shadow-sm group-hover:shadow-md transition-all">
-                        {isLoading ? (
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
-                        ) : (
-                            <FileText className="w-6 h-6 text-red-600" />
-                        )}
+        {/* 2. BSI Upload */}
+        <div className={getZoneClass(!!bsiFileName)}>
+            <input
+                type="file"
+                accept=".csv"
+                onChange={handleBSIChange}
+                disabled={isLoading}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            />
+            {bsiFileName ? (
+                <>
+                    <CheckCircle className="w-6 h-6 text-green-600" />
+                    <div className="text-xs font-semibold text-green-700 break-all px-2 line-clamp-2">
+                        {bsiFileName}
                     </div>
-                    <div>
-                        <h3 className="text-md font-semibold text-gray-800">
-                            2. Rekening Koran BSI
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                            Harus diawali "Account Statement..."
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Muamalat Upload Zone */}
-            <div className="relative border-2 border-dashed border-purple-300 rounded-xl bg-purple-50/50 p-6 text-center hover:border-purple-500 transition-colors cursor-pointer group shadow-sm">
-                <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleMuamalatChange}
-                    disabled={isLoading}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
-                <div className="flex flex-col items-center justify-center space-y-3">
-                    <div className="p-3 bg-white rounded-full shadow-sm group-hover:shadow-md transition-all">
-                        {isLoading ? (
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
-                        ) : (
-                            <FileText className="w-6 h-6 text-purple-600" />
-                        )}
-                    </div>
-                    <div>
-                        <h3 className="text-md font-semibold text-gray-800">
-                            3. Rekening Koran Muamalat
-                        </h3>
-                        <p className="text-xs text-gray-500 mt-1">
-                            Harus diawali "ACC-STATEMENT..."
-                        </p>
-                    </div>
-                </div>
-            </div>
+                </>
+            ) : (
+                <>
+                    <FileText className="w-6 h-6 text-red-600 mb-1" />
+                    <h3 className="text-sm font-semibold text-gray-700">2. RK BSI</h3>
+                    <p className="text-[10px] text-gray-400">Account Statement... (.csv)</p>
+                </>
+            )}
         </div>
 
+        {/* 3. Muamalat Upload */}
+        <div className={getZoneClass(!!muamalatFileName)}>
+            <input
+                type="file"
+                accept=".csv"
+                onChange={handleMuamalatChange}
+                disabled={isLoading}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            />
+            {muamalatFileName ? (
+                <>
+                    <CheckCircle className="w-6 h-6 text-green-600" />
+                    <div className="text-xs font-semibold text-green-700 break-all px-2 line-clamp-2">
+                        {muamalatFileName}
+                    </div>
+                </>
+            ) : (
+                <>
+                    <FileText className="w-6 h-6 text-purple-600 mb-1" />
+                    <h3 className="text-sm font-semibold text-gray-700">3. RK Muamalat</h3>
+                    <p className="text-[10px] text-gray-400">ACC-STATEMENT... (.csv)</p>
+                </>
+            )}
+        </div>
       </div>
 
-      <div className="relative flex items-center w-full max-w-2xl mt-4">
-        <div className="flex-grow border-t border-gray-300"></div>
-        <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">ATAU</span>
-        <div className="flex-grow border-t border-gray-300"></div>
+      <div className="text-center">
+        <button
+            onClick={onUseDummy}
+            disabled={isLoading}
+            className="text-xs text-gray-500 hover:text-blue-600 underline decoration-dotted flex items-center justify-center gap-1 mx-auto"
+        >
+            <Database className="w-3 h-3" />
+            Gunakan Data Dummy (Untuk Testing)
+        </button>
       </div>
-
-      <button
-        onClick={onUseDummy}
-        disabled={isLoading}
-        className="flex items-center justify-center space-x-2 px-6 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 hover:text-blue-600 focus:ring-2 focus:ring-blue-100 transition-all shadow-sm w-full sm:w-auto"
-      >
-        <Database className="w-4 h-4" />
-        <span>Gunakan Data Contoh (Dummy)</span>
-      </button>
     </div>
   );
 };

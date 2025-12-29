@@ -4,15 +4,24 @@ import ResultTable from './components/ResultTable';
 import BankTable from './components/BankTable';
 import { parseAndProcessExcel, parseBankCSV, getDummyData } from './utils/excelProcessor';
 import { ProcessedRow, BankRow } from './types';
-import { BookOpenCheck, Calendar, ArrowUpDown, Filter } from 'lucide-react';
+import { BookOpenCheck, Calendar, ArrowUpDown, Filter, Play, Trash2 } from 'lucide-react';
 
 const App: React.FC = () => {
+  // Data States
   const [excelData, setExcelData] = useState<ProcessedRow[] | null>(null);
   const [bsiData, setBsiData] = useState<BankRow[] | null>(null);
   const [muamalatData, setMuamalatData] = useState<BankRow[] | null>(null);
+
+  // Staging File States (Selected but not processed)
+  const [selectedExcelFile, setSelectedExcelFile] = useState<File | null>(null);
+  const [selectedBsiFile, setSelectedBsiFile] = useState<File | null>(null);
+  const [selectedMuamalatFile, setSelectedMuamalatFile] = useState<File | null>(null);
   
+  // Filter States
   const [globalDate, setGlobalDate] = useState<string>('ALL');
   const [globalPaymentMethod, setGlobalPaymentMethod] = useState<string>('ALL');
+  
+  // UI States
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,43 +50,76 @@ const App: React.FC = () => {
     return ['ALL', ...Array.from(methods).sort()];
   }, [excelData]);
 
-  const handleExcelSelect = async (file: File) => {
-    setLoading(true);
+  // Handlers for File Selection (Staging)
+  const handleExcelSelect = (file: File) => {
     setError(null);
-    try {
-      const processedData = await parseAndProcessExcel(file);
-      setExcelData(processedData);
-    } catch (err) {
-      console.error(err);
-      setError("Gagal memproses file Excel. Pastikan format Excel sesuai.");
-    } finally {
-      setLoading(false);
-    }
+    setSelectedExcelFile(file);
+    // Reset previous data if any
+    setExcelData(null); 
   };
 
-  const handleBSISelect = async (file: File) => {
-    setLoading(true);
+  const handleBSISelect = (file: File) => {
     setError(null);
-    try {
-        const result = await parseBankCSV(file);
-        setBsiData(result.data);
-    } catch (err) {
-        console.error(err);
-        setError("Gagal memproses file Rekening Koran BSI.");
-    } finally {
-        setLoading(false);
-    }
+    setSelectedBsiFile(file);
+    setBsiData(null);
   };
 
-  const handleMuamalatSelect = async (file: File) => {
+  const handleMuamalatSelect = (file: File) => {
+    setError(null);
+    setSelectedMuamalatFile(file);
+    setMuamalatData(null);
+  };
+
+  // Handler for Processing
+  const handleProcessData = async () => {
+    if (!selectedExcelFile && !selectedBsiFile && !selectedMuamalatFile) {
+        setError("Pilih setidaknya satu file untuk diproses.");
+        return;
+    }
+
     setLoading(true);
     setError(null);
+
+    // Create array of promises
+    const promises = [];
+
+    if (selectedExcelFile) {
+        promises.push(
+            parseAndProcessExcel(selectedExcelFile)
+                .then(data => setExcelData(data))
+                .catch(err => {
+                    console.error(err);
+                    throw new Error(`Gagal memproses Excel: ${selectedExcelFile.name}`);
+                })
+        );
+    }
+
+    if (selectedBsiFile) {
+        promises.push(
+            parseBankCSV(selectedBsiFile)
+                .then(res => setBsiData(res.data))
+                .catch(err => {
+                    console.error(err);
+                    throw new Error(`Gagal memproses BSI: ${selectedBsiFile.name}`);
+                })
+        );
+    }
+
+    if (selectedMuamalatFile) {
+        promises.push(
+            parseBankCSV(selectedMuamalatFile)
+                .then(res => setMuamalatData(res.data))
+                .catch(err => {
+                    console.error(err);
+                    throw new Error(`Gagal memproses Muamalat: ${selectedMuamalatFile.name}`);
+                })
+        );
+    }
+
     try {
-        const result = await parseBankCSV(file);
-        setMuamalatData(result.data);
-    } catch (err) {
-        console.error(err);
-        setError("Gagal memproses file Rekening Koran Muamalat.");
+        await Promise.all(promises);
+    } catch (err: any) {
+        setError(err.message || "Terjadi kesalahan saat memproses data.");
     } finally {
         setLoading(false);
     }
@@ -97,6 +139,9 @@ const App: React.FC = () => {
     setExcelData(null);
     setBsiData(null);
     setMuamalatData(null);
+    setSelectedExcelFile(null);
+    setSelectedBsiFile(null);
+    setSelectedMuamalatFile(null);
     setGlobalDate('ALL');
     setGlobalPaymentMethod('ALL');
     setError(null);
@@ -107,44 +152,45 @@ const App: React.FC = () => {
   };
 
   const hasData = excelData || bsiData || muamalatData;
+  const hasSelectedFiles = selectedExcelFile || selectedBsiFile || selectedMuamalatFile;
 
   // Visibility Logic
   const showBSI = bsiData && (globalPaymentMethod === 'ALL' || globalPaymentMethod === 'BSI');
   const showMuamalat = muamalatData && (globalPaymentMethod === 'ALL' || globalPaymentMethod === 'MUAMALAT');
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Header Section */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center p-3 bg-blue-600 rounded-xl shadow-lg mb-4">
+        <div className="text-center space-y-2 mb-8">
+          <div className="inline-flex items-center justify-center p-3 bg-blue-600 rounded-xl shadow-lg mb-2">
             <BookOpenCheck className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight sm:text-4xl">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight sm:text-3xl">
             Sistem Rekapitulasi Penerimaan
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Upload laporan transaksi Excel dan Rekening Koran (BSI/Muamalat) untuk rekapitulasi.
+          <p className="text-sm text-gray-600 max-w-2xl mx-auto">
+            Upload laporan transaksi Excel dan Rekening Koran untuk rekapitulasi otomatis.
           </p>
         </div>
 
         {/* Global Filters (Sticky) */}
         {hasData && (
             <div className="sticky top-4 z-50 flex justify-center mb-6">
-                <div className="bg-white/90 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-blue-100 flex flex-col md:flex-row items-center gap-4">
+                <div className="bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-lg border border-blue-100 flex flex-col md:flex-row items-center gap-4">
                     
                     {/* Date Filter */}
                     <div className="flex items-center space-x-2">
                         <div className="text-gray-500 font-medium text-sm flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
-                            Filter Tanggal:
+                            Tanggal:
                         </div>
-                        <div className="relative min-w-[180px]">
+                        <div className="relative min-w-[160px]">
                             <select
                                 value={globalDate}
                                 onChange={(e) => setGlobalDate(e.target.value)}
-                                className="pl-3 pr-8 py-2 w-full text-sm font-semibold text-gray-800 bg-gray-100 border-none rounded-lg focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-gray-200 transition-colors appearance-none"
+                                className="pl-3 pr-8 py-1.5 w-full text-sm font-semibold text-gray-800 bg-gray-100 border-none rounded-lg focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-gray-200 transition-colors appearance-none"
                             >
                                 {allAvailableDates.map(date => (
                                     <option key={date} value={date}>
@@ -164,13 +210,13 @@ const App: React.FC = () => {
                     <div className="flex items-center space-x-2">
                         <div className="text-gray-500 font-medium text-sm flex items-center gap-1">
                             <Filter className="w-4 h-4" />
-                            Metode Pembayaran:
+                            Metode:
                         </div>
-                        <div className="relative min-w-[180px]">
+                        <div className="relative min-w-[160px]">
                             <select
                                 value={globalPaymentMethod}
                                 onChange={(e) => setGlobalPaymentMethod(e.target.value)}
-                                className="pl-3 pr-8 py-2 w-full text-sm font-semibold text-gray-800 bg-gray-100 border-none rounded-lg focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-gray-200 transition-colors appearance-none"
+                                className="pl-3 pr-8 py-1.5 w-full text-sm font-semibold text-gray-800 bg-gray-100 border-none rounded-lg focus:ring-2 focus:ring-blue-500 cursor-pointer hover:bg-gray-200 transition-colors appearance-none"
                             >
                                 {availablePaymentMethods.map(method => (
                                     <option key={method} value={method}>
@@ -190,7 +236,7 @@ const App: React.FC = () => {
 
         {/* Error Message */}
         {error && (
-          <div className="max-w-2xl mx-auto bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative text-center shadow-sm" role="alert">
+          <div className="max-w-2xl mx-auto bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative text-center shadow-sm text-sm" role="alert">
             <span className="block sm:inline font-medium">{error}</span>
             <button className="absolute top-0 bottom-0 right-0 px-4 py-3" onClick={() => setError(null)}>
                <span className="text-red-500 font-bold">&times;</span>
@@ -198,15 +244,50 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Upload Area */}
-        <FileUpload 
-          onExcelSelect={handleExcelSelect} 
-          onBankSelect={handleBSISelect}
-          onMuamalatSelect={handleMuamalatSelect}
-          onUseDummy={handleUseDummy} 
-          isLoading={loading} 
-          onError={handleError}
-        />
+        {/* File Upload Section */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+            <FileUpload 
+              onExcelSelect={handleExcelSelect} 
+              onBankSelect={handleBSISelect}
+              onMuamalatSelect={handleMuamalatSelect}
+              onUseDummy={handleUseDummy} 
+              isLoading={loading} 
+              onError={handleError}
+              excelFileName={selectedExcelFile?.name}
+              bsiFileName={selectedBsiFile?.name}
+              muamalatFileName={selectedMuamalatFile?.name}
+            />
+
+            {/* Action Buttons */}
+            {hasSelectedFiles && !hasData && (
+                 <div className="mt-6 flex justify-center animate-fade-in-up">
+                    <button
+                        onClick={handleProcessData}
+                        disabled={loading}
+                        className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 font-semibold transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {loading ? (
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                            <Play className="w-5 h-5 fill-current" />
+                        )}
+                        <span>Proses Data Sekarang</span>
+                    </button>
+                 </div>
+            )}
+            
+            {hasData && (
+                <div className="mt-6 flex justify-center">
+                    <button
+                        onClick={handleResetAll}
+                        className="flex items-center gap-2 px-6 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 hover:text-red-600 transition-colors text-sm font-medium"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        Reset & Upload Ulang
+                    </button>
+                </div>
+            )}
+        </div>
 
         {/* Tables Container */}
         <div className="space-y-12">
