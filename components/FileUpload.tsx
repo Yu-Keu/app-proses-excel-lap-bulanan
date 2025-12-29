@@ -1,11 +1,10 @@
 import React, { ChangeEvent } from 'react';
-import { FileSpreadsheet, Database, FileText, CheckCircle, Upload } from 'lucide-react';
+import { FileSpreadsheet, FileText, CheckCircle } from 'lucide-react';
 
 interface FileUploadProps {
   onExcelSelect: (file: File) => void;
   onBankSelect: (file: File) => void; 
   onMuamalatSelect: (file: File) => void;
-  onUseDummy: () => void;
   isLoading: boolean;
   onError: (message: string) => void;
   // Props to display selected status
@@ -18,7 +17,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
   onExcelSelect, 
   onBankSelect, 
   onMuamalatSelect, 
-  onUseDummy, 
   isLoading,
   onError,
   excelFileName,
@@ -142,17 +140,6 @@ const FileUpload: React.FC<FileUploadProps> = ({
                 </>
             )}
         </div>
-      </div>
-
-      <div className="text-center">
-        <button
-            onClick={onUseDummy}
-            disabled={isLoading}
-            className="text-xs text-gray-500 hover:text-blue-600 underline decoration-dotted flex items-center justify-center gap-1 mx-auto"
-        >
-            <Database className="w-3 h-3" />
-            Gunakan Data Dummy (Untuk Testing)
-        </button>
       </div>
     </div>
   );

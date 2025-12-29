@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import FileUpload from './components/FileUpload';
 import ResultTable from './components/ResultTable';
 import BankTable from './components/BankTable';
-import { parseAndProcessExcel, parseBankCSV, getDummyData } from './utils/excelProcessor';
+import { parseAndProcessExcel, parseBankCSV } from './utils/excelProcessor';
 import { ProcessedRow, BankRow } from './types';
 import { BookOpenCheck, Calendar, ArrowUpDown, Filter, Play, Trash2 } from 'lucide-react';
 
@@ -125,16 +125,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUseDummy = () => {
-    setLoading(true);
-    setError(null);
-    setTimeout(() => {
-      const dummyData = getDummyData();
-      setExcelData(dummyData);
-      setLoading(false);
-    }, 600);
-  };
-
   const handleResetAll = () => {
     setExcelData(null);
     setBsiData(null);
@@ -250,7 +240,6 @@ const App: React.FC = () => {
               onExcelSelect={handleExcelSelect} 
               onBankSelect={handleBSISelect}
               onMuamalatSelect={handleMuamalatSelect}
-              onUseDummy={handleUseDummy} 
               isLoading={loading} 
               onError={handleError}
               excelFileName={selectedExcelFile?.name}
