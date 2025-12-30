@@ -364,7 +364,9 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset, selectedDate, 
                           {row.uraian}
                         </span>
                       ) : (
-                        row.uraian
+                        <span className={row.uraian === 'Hasil usaha (cek)' ? 'text-red-600 font-bold' : ''}>
+                          {row.uraian}
+                        </span>
                       )}
                     </td>
                     <td className="px-6 py-3 text-right font-medium text-gray-900">
