@@ -110,40 +110,75 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset, selectedDate, 
   const handleCopyCustomFormat = async () => {
     if (processedData.length === 0) return;
 
-    // Custom Format Specification:
-    // 1. Kode
-    // 2. Empty
-    // 3. Tanggal
-    // 4. Empty (NEW)
-    // 5. Uraian
-    // 6. "Yusuf"
-    // 7. Empty
-    // 8. Empty
-    // 9. Nominal
-
-    const rowStrings = processedData.map(row => {
+    // Generate TSV string as fallback
+    const tsvContent = processedData.map(row => {
+      const cleanUraian = row.uraian.replace(/\t/g, ' '); // Avoid tabs breaking columns
       return [
         row.kode,           // Col 1
-        '',                 // Col 2 (Kosong)
+        '',                 // Col 2
         row.tanggal,        // Col 3
-        '',                 // Col 4 (Kosong - Baru)
-        row.uraian,         // Col 5
-        'Yusuf',            // Col 6 (Hardcoded)
-        '',                 // Col 7 (Kosong)
-        '',                 // Col 8 (Kosong)
+        '',                 // Col 4
+        cleanUraian,        // Col 5
+        'Yusuf',            // Col 6
+        '',                 // Col 7
+        '',                 // Col 8
         row.nominal         // Col 9
       ].join('\t');
-    });
+    }).join('\n');
 
-    // NO HEADERS joined here, just rows
-    const finalString = rowStrings.join('\n');
+    // Generate HTML string for reliable Excel pasting
+    const escapeHtml = (str: string | number) => {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    };
+
+    const htmlContent = `<table>
+      ${processedData.map(row => `<tr>
+        <td>${escapeHtml(row.kode)}</td>
+        <td></td>
+        <td>${escapeHtml(row.tanggal)}</td>
+        <td></td>
+        <td>${escapeHtml(row.uraian)}</td>
+        <td>Yusuf</td>
+        <td></td>
+        <td></td>
+        <td>${row.nominal}</td>
+      </tr>`).join('')}
+    </table>`;
 
     try {
-      await navigator.clipboard.writeText(finalString);
+      // Use ClipboardItem to write text/html which Excel prefers for table data
+      if (typeof ClipboardItem !== 'undefined') {
+        const textBlob = new Blob([tsvContent], { type: 'text/plain' });
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+        
+        await navigator.clipboard.write([
+            new ClipboardItem({
+                'text/plain': textBlob,
+                'text/html': htmlBlob
+            })
+        ]);
+      } else {
+        // Fallback for older browsers
+        await navigator.clipboard.writeText(tsvContent);
+      }
+      
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy', err);
+      console.error('Clipboard write failed, attempting fallback', err);
+      try {
+        await navigator.clipboard.writeText(tsvContent);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      } catch (fallbackErr) {
+        console.error('Fallback copy failed', fallbackErr);
+      }
     }
   };
 
