@@ -37,5 +37,7 @@ export const POS_MAPPING: MappingDictionary = {
   "BIAYA PERPISAHAN PENGABDIAN": {kode: "A28", uraian: "Penerimaan, Yusuf Sebastian, Penerimaan dana iuran wisuda"},
   "DANA TITIPAN XENDIT": {kode: "A28", uraian: "Penerimaan, Yusuf Sebastian, Penerimaan dana titipan via Xendit"},
   "GUEST HOUSE": {kode: "A15", uraian: "Penerimaan, Yusuf Sebastian, Penerimaan Guest House"},
-  "DANA TITIPAN IFTHOR": {kode: "A26", uraian: "Penerimaan, Yusuf Sebastian, Dana titipan untuk kegiatan ifthor"}
+  "DANA TITIPAN IFTHOR": {kode: "A26", uraian: "Penerimaan, Yusuf Sebastian, Dana titipan untuk kegiatan ifthor"},
+  "KANTIN": {kode: "A15", uraian: "Penerimaan, Yusuf Sebastian, Penerimaan Usaha kantin"},
+  "BIDAN PRAKTEK MANDIRI": {kode: "A15", uraian: "Penerimaan, Yusuf Sebastian, Penerimaan usaha bidan praktek mandiri"},
 };
