@@ -31,11 +31,6 @@ jobs:
       - name: Build the project
         run: npm install
 
-      - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: "./dist" # Vite automatically builds into the "dist" folder
-
   deploy:
     environment:
       name: github-pages
