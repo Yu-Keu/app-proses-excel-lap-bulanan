@@ -31,10 +31,6 @@ jobs:
       - name: Build the project
         run: npm install
 
-      # IMPORTANT: This step fixes React Router (so refreshing the page doesn't give a 404 error)
-      - name: Fix SPA Routing
-        run: cp dist/index.html dist/404.html
-
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
