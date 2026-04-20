@@ -11,14 +11,42 @@ interface BankTableProps {
 }
 
 const BankTable: React.FC<BankTableProps> = ({ data, selectedDate, title, theme = 'red' }) => {
-  
+
   const filteredData = useMemo(() => {
     if (selectedDate === 'ALL') return data;
-    return data.filter(row => row.date === selectedDate);
+
+    // Robust date normalization to prevent data from hiding
+    // Handles formats like: "5/9/23", "05-09-2023 14:00:00", "2023.09.05" -> turns them all into "05/09/2023"
+    const normalizeDate = (d: string) => {
+      if (!d) return '';
+      let datePart = d.trim().split(/\s+/)[0]; // Remove time if exists
+      datePart = datePart.replace(/[-.]/g, '/'); // Unify separators
+
+      const parts = datePart.split('/');
+      if (parts.length === 3) {
+        let year, month, day;
+        if (parts[0].length === 4) { // YYYY/MM/DD
+          year = parts[0];
+          month = parts[1].padStart(2, '0');
+          day = parts[2].padStart(2, '0');
+        } else if (parts[2].length >= 2) { // DD/MM/YYYY or DD/MM/YY
+          day = parts[0].padStart(2, '0');
+          month = parts[1].padStart(2, '0');
+          year = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+        } else {
+          return datePart;
+        }
+        return `${day}/${month}/${year}`;
+      }
+      return datePart;
+    };
+
+    const targetDate = normalizeDate(selectedDate);
+    return data.filter(row => normalizeDate(row.date) === targetDate);
   }, [data, selectedDate]);
 
   const totalAmount = useMemo(() => {
-    return filteredData.reduce((acc, curr) => acc + curr.amount, 0);
+    return filteredData.reduce((acc, curr) => acc + (curr.amount || 0), 0);
   }, [filteredData]);
 
   if (data.length === 0) return null;
@@ -52,19 +80,19 @@ const BankTable: React.FC<BankTableProps> = ({ data, selectedDate, title, theme 
       <div className={`bg-white rounded-xl shadow-lg border ${t.border} overflow-hidden flex flex-col`}>
         {/* Header */}
         <div className={`px-6 py-4 border-b border-gray-100 ${t.headerBg} flex flex-col sm:flex-row justify-between items-center gap-4`}>
-            <div className="flex items-center space-x-2">
-                <FileText className={`${t.iconColor} w-5 h-5`} />
-                <h3 className="font-bold text-gray-800">{title}</h3>
-            </div>
-            
-            {/* Filter Status */}
-            <div className="text-sm text-gray-500">
-               {selectedDate === 'ALL' ? 'Semua Tanggal' : `Filter: ${selectedDate}`}
-            </div>
+          <div className="flex items-center space-x-2">
+            <FileText className={`${t.iconColor} w-5 h-5`} />
+            <h3 className="font-bold text-gray-800">{title}</h3>
+          </div>
+
+          {/* Filter Status */}
+          <div className="text-sm text-gray-500">
+            {selectedDate === 'ALL' ? 'Semua Tanggal' : `Filter: ${selectedDate}`}
+          </div>
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+        <div className="overflow-x-auto max-h-[500px] overflow-y-auto relative">
           <table className="w-full text-left border-collapse">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
@@ -74,34 +102,34 @@ const BankTable: React.FC<BankTableProps> = ({ data, selectedDate, title, theme 
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
-                {filteredData.length > 0 ? (
-                    filteredData.map((row) => (
-                        <tr key={row.id} className={`${t.rowHover} transition-colors`}>
-                            <td className="px-6 py-3 text-gray-600 whitespace-nowrap w-32">{row.date}</td>
-                            <td className="px-6 py-3 text-gray-800">{row.description}</td>
-                            <td className="px-6 py-3 text-right font-medium text-gray-900 whitespace-nowrap w-48">
-                                {formatCurrency(row.amount)}
-                            </td>
-                        </tr>
-                    ))
-                ) : (
-                    <tr>
-                        <td colSpan={3} className="px-6 py-8 text-center text-gray-400">
-                            Tidak ada data untuk tanggal {selectedDate}.
-                        </td>
-                    </tr>
-                )}
-            </tbody>
-            <tfoot className="bg-gray-50 font-bold text-gray-900 sticky bottom-0">
+              {filteredData.length > 0 ? (
+                filteredData.map((row, index) => (
+                  <tr key={row.id || `row-${index}`} className={`${t.rowHover} transition-colors`}>
+                    <td className="px-6 py-3 text-gray-600 whitespace-nowrap w-32">{row.date}</td>
+                    <td className="px-6 py-3 text-gray-800">{row.description}</td>
+                    <td className="px-6 py-3 text-right font-medium text-gray-900 whitespace-nowrap w-48">
+                      {formatCurrency(row.amount || 0)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
                 <tr>
-                  <td colSpan={2} className="px-6 py-3 text-right">
-                    TOTAL DEBIT 
-                    {selectedDate !== 'ALL' && <span className="text-xs font-normal text-gray-500 ml-1">({selectedDate})</span>}
-                  </td>
-                  <td className={`px-6 py-3 text-right ${t.totalText}`}>
-                    {formatCurrency(totalAmount)}
+                  <td colSpan={3} className="px-6 py-8 text-center text-gray-400">
+                    Tidak ada data untuk tanggal {selectedDate}.
                   </td>
                 </tr>
+              )}
+            </tbody>
+            <tfoot className="bg-gray-50 font-bold text-gray-900 sticky bottom-0 z-10 border-t border-gray-200">
+              <tr>
+                <td colSpan={2} className="px-6 py-3 text-right">
+                  TOTAL TRANSAKSI
+                  {selectedDate !== 'ALL' && <span className="text-xs font-normal text-gray-500 ml-1">({selectedDate})</span>}
+                </td>
+                <td className={`px-6 py-3 text-right ${t.totalText}`}>
+                  {formatCurrency(totalAmount)}
+                </td>
+              </tr>
             </tfoot>
           </table>
         </div>
