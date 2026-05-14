@@ -94,7 +94,6 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset, selectedDate, 
         default:
           comparison = 0;
       }
-
       return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
 
@@ -108,11 +107,30 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset, selectedDate, 
   const handleCopyCustomFormat = async () => {
     if (processedData.length === 0) return;
 
+    let metodePembayaran = ''
+
+    if (processedData.length > 0) {
+      switch (processedData[0].paymentMethod) {
+        case 'MUAMALAT':
+          metodePembayaran = 'Bank Muamalat'
+          break;
+        case 'BSI':
+          metodePembayaran = 'Bank BSI'
+          break;
+        case 'TUNAI':
+          metodePembayaran = 'Kas Besar'
+          break;
+        default:
+          break;
+      }
+    }
+
     const tsvContent = processedData.map(row => {
       const cleanUraian = (row.uraian || '').replace(/\t/g, ' ');
+
       return [
         row.kode || '',
-        '',
+        metodePembayaran || '',
         row.tanggal || '',
         '',
         cleanUraian,
@@ -136,7 +154,7 @@ const ResultTable: React.FC<ResultTableProps> = ({ data, onReset, selectedDate, 
     const htmlContent = `<table>
       ${processedData.map(row => `<tr>
         <td>${escapeHtml(row.kode)}</td>
-        <td></td>
+        <td>${escapeHtml(metodePembayaran)}</td>
         <td>${escapeHtml(row.tanggal)}</td>
         <td></td>
         <td>${escapeHtml(row.uraian)}</td>
